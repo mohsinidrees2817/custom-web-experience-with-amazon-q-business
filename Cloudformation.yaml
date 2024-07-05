@@ -281,8 +281,8 @@ Resources:
                 echo "Yum install succeeded"
                 success=true
               else
-                echo "Attempt $attempt_num failed. Sleeping for 3 seconds and trying again..."
-                sleep 3
+                echo "Attempt $attempt_num failed. Sleeping for 4 seconds and trying again..."
+                sleep 4
                 ((attempt_num++))
               fi
             done
@@ -297,8 +297,8 @@ Resources:
                 echo "Yum install succeeded"
                 success=true
               else
-                echo "Attempt $attempt_num failed. Sleeping for 3 seconds and trying again..."
-                sleep 3
+                echo "Attempt $attempt_num failed. Sleeping for 4 seconds and trying again..."
+                sleep 4
                 ((attempt_num++))
               fi
             done
