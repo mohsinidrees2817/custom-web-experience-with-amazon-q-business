@@ -51,6 +51,7 @@ def configure_oauth_component():
         client_id, None, authorize_url, token_url, refresh_token_url, revoke_token_url
     )
 
+
 def refresh_iam_oidc_token(refresh_token):
     """
     Refresh the IAM OIDC token using the refresh token retrieved from Cognito
@@ -74,11 +75,6 @@ def get_iam_oidc_token(id_token):
         grantType="urn:ietf:params:oauth:grant-type:jwt-bearer",
         assertion=id_token,
     )
-    decoded_token = jwt.decode(response['accessToken'], options={"verify_signature": False})
-    user_id = decoded_token.get('sub')
-    st.write(f"User ID: {user_id}")
-    st.write(f"response: {response}")
-    st.session_state.user_id = user_id
     return response
 
 
@@ -98,8 +94,6 @@ def assume_role_with_token(iam_token):
             }
         ],
     )
-    st.session_state.aws_credentials = response["Credentials"]
-    st.session_state.user_id = decoded_token.get('sub')  # Store userId in session state
 
     return response
 
@@ -117,15 +111,13 @@ def get_qclient(idc_id_token: str):
         assume_role_with_token(idc_id_token)
 
     # Decode the IDC ID token to get userId
-    decoded_token = jwt.decode(idc_id_token, options={"verify_signature": False})
-    user_id = decoded_token.get('sub')
     session = boto3.Session(
         aws_access_key_id=st.session_state.aws_credentials["AccessKeyId"],
         aws_secret_access_key=st.session_state.aws_credentials["SecretAccessKey"],
         aws_session_token=st.session_state.aws_credentials["SessionToken"],
     )
     amazon_q = session.client("qbusiness", REGION)
-    return amazon_q, user_id
+    return amazon_q
 
 
 # This code invoke chat_sync api and format the response for UI
@@ -133,8 +125,9 @@ def get_queue_chain(prompt_input, conversation_id, parent_message_id, token):
     """"
     This method is used to get the answer from the queue chain.
     """
-    amazon_q, user_id = get_qclient(token)
-
+    amazon_q = get_qclient(token)
+    token = st.session_state["token"]
+    user_email = jwt.decode(token["id_token"], options={"verify_signature": False})["email"]
   
         
     if conversation_id != "":
@@ -143,11 +136,11 @@ def get_queue_chain(prompt_input, conversation_id, parent_message_id, token):
             userMessage=prompt_input,
             conversationId=conversation_id,
             parentMessageId=parent_message_id,
-            userId=user_id
+            userId=user_email
         )
     else:
         answer = amazon_q.chat_sync(
-            applicationId=AMAZON_Q_APP_ID, userMessage=prompt_input, userId=user_id
+            applicationId=AMAZON_Q_APP_ID, userMessage=prompt_input, userId=user_email
         )
 
     system_message = answer.get("systemMessage", "")
