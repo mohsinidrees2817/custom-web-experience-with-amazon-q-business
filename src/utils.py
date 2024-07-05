@@ -96,6 +96,7 @@ def assume_role_with_token(iam_token):
     st.session_state.aws_credentials = response["Credentials"]
 
 
+
 # This method create the Q client
 def get_qclient(idc_id_token: str):
     """
@@ -112,17 +113,25 @@ def get_qclient(idc_id_token: str):
         aws_session_token=st.session_state.aws_credentials["SessionToken"],
     )
     amazon_q = session.client("qbusiness", REGION)
-    return amazon_q, session
+
+
+    sts_client = boto3.client('sts',
+        aws_access_key_id=st.session_state.aws_credentials["AccessKeyId"],
+        aws_secret_access_key=st.session_state.aws_credentials["SecretAccessKey"],
+        aws_session_token=st.session_state.aws_credentials["SessionToken"],
+        )
+    Userid = sts_client.get_caller_identity()
+    return amazon_q, Userid["UserId"]
 
 
 # This code invoke chat_sync api and format the response for UI
 def get_queue_chain(
     prompt_input, conversation_id, parent_message_id, token
 ):
-    """"
-    This method is used to get the answer from the queue chain.
-    """
-    amazon_q = get_qclient(token)
+    # """"
+    # This method is used to get the answer from the queue chain.
+    # """
+    amazon_q , UserId  = get_qclient(token)
     
     if conversation_id != "":
         answer = amazon_q.chat_sync(
@@ -130,10 +139,11 @@ def get_queue_chain(
             userMessage=prompt_input,
             conversationId=conversation_id,
             parentMessageId=parent_message_id,
+            userId=UserId
         )
     else:
         answer = amazon_q.chat_sync(
-            applicationId=AMAZON_Q_APP_ID, userMessage=prompt_input
+            applicationId=AMAZON_Q_APP_ID, userMessage=prompt_input, userId=UserId
         )
 
     system_message = answer.get("systemMessage", "")
