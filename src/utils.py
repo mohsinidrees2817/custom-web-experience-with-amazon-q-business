@@ -14,9 +14,6 @@ logger = logging.getLogger()
 APPCONFIG_APP_NAME = os.environ["APPCONFIG_APP_NAME"]
 APPCONFIG_ENV_NAME = os.environ["APPCONFIG_ENV_NAME"]
 APPCONFIG_CONF_NAME = os.environ["APPCONFIG_CONF_NAME"]
-# APPCONFIG_APP_NAME = "qcustomwebui"
-# APPCONFIG_ENV_NAME = "qcustomwebui-env"
-# APPCONFIG_CONF_NAME = "qcustomwebui-config"
 AMAZON_Q_APP_ID = None
 IAM_ROLE = None
 REGION = None
@@ -38,15 +35,6 @@ def retrieve_config_from_agent():
     IDC_APPLICATION_ID = config["IdcApplicationArn"]
     AMAZON_Q_APP_ID = config["AmazonQAppId"]
     OAUTH_CONFIG = config["OAuthConfig"]
-    # IAM_ROLE = "arn:aws:iam::654654371288:role/qupdatedflow-template-EC2ServiceRole-oLIOKCarBz3y"
-    # REGION = "us-west-2"
-    # AMAZON_Q_APP_ID = "c3b1409d-664b-400c-a52f-1501742dee4e"
-    # IDC_APPLICATION_ID = "arn:aws:sso::654654371288:application/ssoins-7907b281e4f89494/apl-0048e56b776c56f0"
-    # OAUTH_CONFIG = {
-    #     "ClientId": "32brecqjb3urbjan3vhc7pv0fl",
-    #     "ExternalDns": "qupdat-appli-65kgqnmunilv-1553930440.us-west-2.elb.amazonaws.com",
-    #     "CognitoDomain": "qupdatedflowauth-dns-testname.auth.us-west-2.amazoncognito.com"
-    # }
 
 
 def configure_oauth_component():
@@ -124,7 +112,7 @@ def get_qclient(idc_id_token: str):
         aws_session_token=st.session_state.aws_credentials["SessionToken"],
     )
     amazon_q = session.client("qbusiness", REGION)
-    return amazon_q
+    return amazon_q, session
 
 
 # This code invoke chat_sync api and format the response for UI
@@ -135,6 +123,7 @@ def get_queue_chain(
     This method is used to get the answer from the queue chain.
     """
     amazon_q = get_qclient(token)
+    
     if conversation_id != "":
         answer = amazon_q.chat_sync(
             applicationId=AMAZON_Q_APP_ID,
