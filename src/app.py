@@ -13,8 +13,10 @@ utils.retrieve_config_from_agent()
 if "aws_credentials" not in st.session_state:
     st.session_state.aws_credentials = None
 
-st.set_page_config(page_title="Amazon Q Business Custom UI") #HTML title
-st.title("Amazon Q Business Custom UI") #page title
+
+st.set_page_config("IRS Form 1040 Advisor sdcsdcsdcd scsdcApp with Amazon Q") #HTML title
+st.sidebar.subheader ("IRS Form 1040 Advisor sdcsdcsdcd scsdcApp with Amazon Q")
+
 
 # Define a function to clear the chat history
 def clear_chat_history():
@@ -32,7 +34,7 @@ if "token" not in st.session_state:
     # If not, show authorize button
     redirect_uri = f"https://{utils.OAUTH_CONFIG['ExternalDns']}/component/streamlit_oauth.authorize_button/index.html"
     
-    result = oauth2.authorize_button("Connect with Cognito",scope="openid", pkce="S256", redirect_uri=redirect_uri)
+    result = oauth2.authorize_button("Login",scope="openid", pkce="S256", redirect_uri=redirect_uri)
     if result and "token" in result:
         # If authorization successful, save token in session state
         st.session_state.token = result.get("token")
@@ -46,15 +48,15 @@ else:
     refresh_token = token["refresh_token"] # saving the long lived refresh_token
     user_email = jwt.decode(token["id_token"], options={"verify_signature": False})["email"]
 
-    if st.button("Refresh Cognito Token") :
-        # If refresh token button is clicked or the token is expired, refresh the token
-        token = oauth2.refresh_token(token, force=True)
-        # Put the refresh token in the session state as it is not returned by Cognito
-        token["refresh_token"] = refresh_token
-        # Retrieve the Identity Center token
+    # if st.button("Refresh Cognito Token") :
+    #     # If refresh token button is clicked or the token is expired, refresh the token
+    #     token = oauth2.refresh_token(token, force=True)
+    #     # Put the refresh token in the session state as it is not returned by Cognito
+    #     token["refresh_token"] = refresh_token
+    #     # Retrieve the Identity Center token
 
-        st.session_state.token = token
-        st.rerun()
+    #     st.session_state.token = token
+    #     st.rerun()
     if "idc_jwt_token" not in st.session_state:
         st.session_state["idc_jwt_token"] = utils.get_iam_oidc_token(token["id_token"])
         st.session_state["idc_jwt_token"]["expires_at"] = datetime.now(UTC) + \
@@ -69,18 +71,35 @@ else:
                 timedelta(seconds=st.session_state["idc_jwt_token"]["expiresIn"])
         except Exception as e:
             st.error(f"Error refreshing Identity Center token: {e}. Please reload the page.")
-
-    col1, col2 = st.columns([1,1])
-
-    with col1:
-        st.write("Welcome: ", user_email)
+    
+    # col1, col2 = st.columns([1,1])
+    # with col1:
+    #     st.write("Welcome: ", user_email)
+     
+    st.sidebar.text ("Welcome: " + user_email)
+    st.markdown(
+        f"""
+         <style>
+            [data-testid="stSidebarNav"]::before {{
+                content: "User: {user_email}";
+                margin-left: 20px;
+                margin-top: 20px;
+                font-size: 30px;
+                position: relative;
+                top: 100px;
+            }}
         
-    with col2:
-        st.button("Clear Chat History", on_click=clear_chat_history)
+        """,
+        unsafe_allow_html=True
+    )
+
+    if st.sidebar.button("logout"):
+        utils.logout()   
+    st.button("Clear Chat History", on_click=clear_chat_history)
 
     # Initialize the chat messages in the session state if it doesn't exist
-    if "messages" not in st.session_state:
-        st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
+    # if "messages" not in st.session_state:
+    #     st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
 
     if "conversationId" not in st.session_state:
         st.session_state["conversationId"] = ""
@@ -119,6 +138,7 @@ else:
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 placeholder = st.empty()
+
                 response = utils.get_queue_chain(prompt,st.session_state["conversationId"],
                                                  st.session_state["parentMessageId"],
                                                  st.session_state["idc_jwt_token"]["idToken"])
@@ -136,3 +156,13 @@ else:
             feedback_type="thumbs",
             optional_text_label="[Optional] Please provide an explanation",
         )
+
+    if not st.session_state.messages and st.session_state["conversationId"] != "" and st.session_state["parentMessageId"] != "":
+        # Display the questions
+        
+        st.subheader("Ask Natural Language Questions Against IRS Form 1040 Instructions Guide:")
+        st.write("Suggested Topics:")
+        st.write("1. If I plan to move after filing my tax return, What should i File?")
+        st.write("2. If my Filing Status is Single and i am under 65, what is the gross income limit?")
+        st.write("3. How Should I Report Digital Asset Transactions?")
+        st.write("4. Explain Line 6c to me")
