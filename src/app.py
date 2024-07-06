@@ -134,7 +134,7 @@ else:
 
 
     # If the last message is from the user, generate a response from the Q_backend
-    if st.session_state.messages[-1]["role"] != "assistant":
+    if st.session_state.messages and st.session_state.messages[-1]["role"] != "assistant":
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 placeholder = st.empty()
