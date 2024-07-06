@@ -96,13 +96,10 @@ else:
     if st.sidebar.button("logout"):
         utils.logout()   
     st.button("Clear Chat History", on_click=clear_chat_history)
-    st.write(st.session_state["idc_jwt_token"])
-    st.write(st.session_state["token"])
-    st.write(st.session_state["aws_credentials"])
 
     # Initialize the chat messages in the session state if it doesn't exist
-    # if "messages" not in st.session_state:
-    #     st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
+    if "messages" not in st.session_state:
+        st.session_state["messages"] = []
 
     if "conversationId" not in st.session_state:
         st.session_state["conversationId"] = ""
