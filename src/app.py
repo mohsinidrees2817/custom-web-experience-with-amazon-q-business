@@ -92,6 +92,11 @@ else:
         """,
         unsafe_allow_html=True
     )
+    st.write("token", token)
+    st.write("idc_jwt_token", st.session_state["idc_jwt_token"])
+    st.write("aws_credentials", st.session_state.aws_credentials)
+    st.write("refresh_token", refresh_token)
+    st.write("user_email", user_email)
 
     if st.sidebar.button("logout"):
         utils.logout()   

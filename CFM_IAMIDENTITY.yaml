@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation to create IAM Identity Center Application with Trusted Token Issuer and Application Credentials"
+
+Parameters:
+  TrustedIssuerUrl:
+    Description: Endpoint of the trusted issuer to setup Identity Center
+    Type: String
+  Audience:
+    Description: Audience to setup customer application in Identity Center
+    Type: String
+  RoleArn:
+    Description: ARN of the IAM role required to setup token exchange in Identity Center
+    Type: String
+  InstanceArn:
+    Description: The ARN of the IAM Identity Center instance
+    Type: String
+
+Resources:
+  # Lambda Function for Custom Resource
+  CustomResourceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt CustomResourceFunctionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import cfnresponse
+
+          sso_client = boto3.client('sso-admin')
+
+          def handler(event, context):
+              instance_arn = event['ResourceProperties']['InstanceArn']
+              trusted_issuer_url = event['ResourceProperties']['TrustedIssuerUrl']
+              audience = event['ResourceProperties']['Audience']
+              role_arn = event['ResourceProperties']['RoleArn']
+
+              try:
+                  if event['RequestType'] in ['Create', 'Update']:
+                      # Create the IAM Identity Center Application
+                      application_response = sso_client.create_application_instance(
+                          InstanceArn=instance_arn,
+                          Name='CustomManagedApplication',
+                          Description='Custom managed application created via CloudFormation',
+                          ApplicationType='OAuth2.0',
+                          ApplicationUrl='http://example.com',
+                          RequireAssignment=True,
+                          ApplicationVisibility='DISABLED',
+                          TrustedTokenIssuer={
+                              'Issuer': trusted_issuer_url,
+                              'Name': 'CustomTrustedIssuer',
+                              'AttributeMapping': {'Email': 'email'}
+                          },
+                          AudClaim=audience,
+                          RoleArn=role_arn
+                      )
+                      application_arn = application_response['ApplicationArn']
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'ApplicationArn': application_arn})
+                  else:
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+              except Exception as e:
+                  print(f"Failed to create application: {e}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {'Message': 'Failed to create application'})
+
+      Runtime: python3.9
+      Timeout: 300
+
+  # IAM Role for Lambda Function
+  CustomResourceFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SSOAdminPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sso-admin:CreateApplicationInstance
+                  - sso-admin:UpdateApplicationInstance
+                  - sso-admin:DescribeApplicationInstance
+                Resource: "*"
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  # Custom Resource to create IAM Identity Center Application
+  CreateIAMIdentityCenterApplication:
+    Type: Custom::CreateIAMIdentityCenterApplication
+    Properties:
+      ServiceToken: !GetAtt CustomResourceFunction.Arn
+      InstanceArn: !Ref InstanceArn
+      TrustedIssuerUrl: !Ref TrustedIssuerUrl
+      Audience: !Ref Audience
+      RoleArn: !Ref RoleArn
+
+Outputs:
+  ApplicationArn:
+    Description: The ARN of the IAM Identity Center Application
+    Value: !GetAtt CreateIAMIdentityCenterApplication.ApplicationArn
