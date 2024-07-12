@@ -8,14 +8,15 @@ from streamlit_feedback import streamlit_feedback
 import boto3
 UTC=timezone.utc
 
+
+
 # Init configuration
 utils.retrieve_config_from_agent()
 if "aws_credentials" not in st.session_state:
     st.session_state.aws_credentials = None
 
-
-st.set_page_config("IRS Form 1040 Advisor sdcsdcsdcd scsdcApp with Amazon Q") #HTML title
-st.sidebar.subheader ("IRS Form 1040 Advisor sdcsdcsdcd scsdcApp with Amazon Q")
+st.set_page_config(page_title="Amazon Q Business Custom UI") #HTML title
+st.title("Amazon Q Business Custom UI") #page title
 
 
 # Define a function to clear the chat history
@@ -33,8 +34,7 @@ oauth2 = utils.configure_oauth_component()
 if "token" not in st.session_state:
     # If not, show authorize button
     redirect_uri = f"https://{utils.OAUTH_CONFIG['ExternalDns']}/component/streamlit_oauth.authorize_button/index.html"
-    
-    result = oauth2.authorize_button("Login",scope="openid", pkce="S256", redirect_uri=redirect_uri)
+    result = oauth2.authorize_button("Connect with Cognito",scope="openid", pkce="S256", redirect_uri=redirect_uri)
     if result and "token" in result:
         # If authorization successful, save token in session state
         st.session_state.token = result.get("token")

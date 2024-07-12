@@ -63,7 +63,6 @@ def refresh_iam_oidc_token(refresh_token):
     )
     return response
 
-
 def get_iam_oidc_token(id_token):
     """
     Get the IAM OIDC token using the ID token retrieved from Cognito
@@ -76,9 +75,8 @@ def get_iam_oidc_token(id_token):
     )
     return response
 
-
 def logout():
-    del st.session_state['token']
+    st.session_state.messages = []
     if 'token' in st.session_state:
         del st.session_state['token']
         st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
@@ -88,8 +86,10 @@ def logout():
         st.session_state["chat_history"] = []
         st.session_state["conversationId"] = ""
         st.session_state["parentMessageId"] = ""
-    st.rerun()
-
+        st.rerun()
+    else:
+        st.warning("No user logged in")
+    
 def assume_role_with_token(iam_token):
     """
     Assume IAM role with the IAM OIDC idToken
