@@ -1,7 +1,6 @@
 import datetime
 import logging
 import os
-
 import boto3
 import jwt
 import streamlit as st
@@ -76,7 +75,6 @@ def get_iam_oidc_token(id_token):
     return response
 
 def logout():
-    st.session_state.messages = []
     if 'token' in st.session_state:
         del st.session_state['token']
         st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
