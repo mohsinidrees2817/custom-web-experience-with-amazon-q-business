@@ -143,7 +143,6 @@ else:
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 placeholder = st.empty()
-
                 response = utils.get_queue_chain(prompt,st.session_state["conversationId"],
                                                  st.session_state["parentMessageId"],
                                                  st.session_state["idc_jwt_token"]["idToken"])

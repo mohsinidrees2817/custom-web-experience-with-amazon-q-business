@@ -78,6 +78,7 @@ def get_iam_oidc_token(id_token):
 
 
 def logout():
+    del st.session_state['token']
     if 'token' in st.session_state:
         del st.session_state['token']
         st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
@@ -87,6 +88,7 @@ def logout():
         st.session_state["chat_history"] = []
         st.session_state["conversationId"] = ""
         st.session_state["parentMessageId"] = ""
+    st.rerun()
 
 def assume_role_with_token(iam_token):
     """

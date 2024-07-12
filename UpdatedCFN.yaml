@@ -6,9 +6,22 @@ Parameters:
     Description: EC2 machine image
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+  VpcCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: Please enter VPC CIDR
+  PublicSubnetCIDR:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: Please enter CIDR for Public Subnet
+  PrivateSubnetCIDR:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: Please enter CIDR for Private Subnet
   CertificateARN:
     Description: Certificate that needs to be added to the Load Balancer
     Type: String
+    Default: "arn:aws:acm:us-west-2:654654371288:certificate/46b6c798-37fb-4ca2-982f-7c14bdaf33d0"
   AuthName:
     Type: String
     Description: Unique Auth Name for Cognito Resources
@@ -17,43 +30,94 @@ Parameters:
   QApplicationId:
     Type: String
     Description: Q Application Id
+    Default: "c3b1409d-664b-400c-a52f-1501742dee4e"
   IdcApplicationArn:
     Type: String
-    Description: Identity Center customer application ARN (Required In update flow).
+    Description: Identity Center customer application ARN.
     Default: ""
 
 Resources:
-  VPC:
+  myVPC:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: "172.31.0.0/16"
-      EnableDnsSupport: true
-      EnableDnsHostnames: true
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: "true"
+      EnableDnsHostnames: "true"
+      InstanceTenancy: default
       Tags:
         - Key: Name
-          Value: "GenAI-VPC"
+          Value: myVPC
 
-  PublicSubnet1:
+  myInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: myInternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref myVPC
+      InternetGatewayId: !Ref myInternetGateway
+
+  myPublicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref VPC
-      CidrBlock: "172.31.16.0/20"
-      MapPublicIpOnLaunch: true
-      AvailabilityZone: !Select [0, !GetAZs ""]
+      VpcId: !Ref myVPC
+      CidrBlock: !Ref PublicSubnetCIDR
+      AvailabilityZone: "us-west-2a"
+      MapPublicIpOnLaunch: "true"
       Tags:
         - Key: Name
-          Value: "PublicSubnet1"
+          Value: myPublicSubnet
 
-  PublicSubnet2:
+  myPrivateSubnet:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref VPC
-      CidrBlock: "172.31.32.0/20"
-      MapPublicIpOnLaunch: true
-      AvailabilityZone: !Select [1, !GetAZs ""]
+      VpcId: !Ref myVPC
+      CidrBlock: !Ref PrivateSubnetCIDR
+      AvailabilityZone: "us-west-2b"
+      MapPublicIpOnLaunch: "false"
       Tags:
         - Key: Name
-          Value: "PublicSubnet2"
+          Value: myPrivateSubnet
+
+  myRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: myRouteTable
+
+  myRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref myInternetGateway
+
+  myPublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPublicSubnet
+      RouteTableId: !Ref myRouteTable
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      VpcId: !Ref myVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8501
+          ToPort: 8501
+          CidrIp: 0.0.0.0/0
 
   QManagedPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -80,9 +144,6 @@ Resources:
             Action:
               - sts:AssumeRole
               - sts:SetContext
-            Condition:
-              ArnEquals:
-                "aws:PrincipalArn": !GetAtt EC2ServiceRole.Arn
       Path: /
       ManagedPolicyArns:
         - !Ref QManagedPolicy
@@ -102,6 +163,8 @@ Resources:
       Path: /
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+        - arn:aws:iam::aws:policy/EC2InstanceConnect
 
   EC2ServicePolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -126,68 +189,6 @@ Resources:
             Action:
               - "sso-oauth:CreateTokenWithIAM"
             Resource: "*"
-          - Sid: AllowAppConfig
-            Effect: Allow
-            Action:
-              - "appconfig:StartConfigurationSession"
-              - "appconfig:GetLatestConfiguration"
-            Resource:
-              - !Sub "arn:${AWS::Partition}:appconfig:${AWS::Region}:${AWS::AccountId}:application/${AppConfig}/environment/${AppConfigEnvironment}/configuration/${AppConfigConfigProfile}"
-
-  AppConfig:
-    Type: AWS::AppConfig::Application
-    Properties:
-      Name: qcustomwebui
-
-  AppConfigEnvironment:
-    Type: AWS::AppConfig::Environment
-    Properties:
-      ApplicationId: !Ref AppConfig
-      Name: qcustomwebui-env
-
-  AppConfigConfigProfile:
-    Type: AWS::AppConfig::ConfigurationProfile
-    Properties:
-      ApplicationId: !Ref AppConfig
-      Name: qcustomwebui-config
-      LocationUri: "hosted"
-
-  AppConfigConfigVersion:
-    Type: AWS::AppConfig::HostedConfigurationVersion
-    Properties:
-      ApplicationId: !Ref AppConfig
-      ConfigurationProfileId: !Ref AppConfigConfigProfile
-      ContentType: "application/json"
-      Content: !Sub |
-        {
-          "AmazonQAppId": "${QApplicationId}",
-          "IamRoleArn": "${QServiceRole.Arn}",
-          "Region": "${AWS::Region}",
-          "IdcApplicationArn": "${IdcApplicationArn}",
-          "OAuthConfig": {
-            "ClientId": "${UserPoolClient}",
-            "ExternalDns": "${LowerCaseFqdn.Output}",
-            "CognitoDomain" : "${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
-          }
-        }
-  AppConfigDeployment:
-    Type: AWS::AppConfig::Deployment
-    Properties:
-      ApplicationId: !Ref AppConfig
-      ConfigurationProfileId: !Ref AppConfigConfigProfile
-      ConfigurationVersion: !GetAtt AppConfigConfigVersion.VersionNumber
-      EnvironmentId: !Ref AppConfigEnvironment
-      DeploymentStrategyId: !Ref AppConfigDeploymentStrategy
-
-  AppConfigDeploymentStrategy:
-    Type: AWS::AppConfig::DeploymentStrategy
-    Properties:
-      DeploymentDurationInMinutes: 0
-      FinalBakeTimeInMinutes: 0
-      GrowthFactor: 100
-      Name: "Quick deployment"
-      ReplicateTo: "NONE"
-      GrowthType: "LINEAR"
 
   ELBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -199,7 +200,7 @@ Resources:
           - SECURITY_GROUP_MISSING_EGRESS_RULE
     Properties:
       GroupDescription: ELB Security Group
-      VpcId: !Ref VPC
+      VpcId: !Ref myVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 443
@@ -230,7 +231,7 @@ Resources:
           - SECURITY_GROUP_MISSING_EGRESS_RULE
     Properties:
       GroupDescription: EC2 Security group
-      VpcId: !Ref VPC
+      VpcId: !Ref myVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 8080
@@ -269,8 +270,9 @@ Resources:
       HealthCheckType: ELB
       HealthCheckGracePeriod: 180
       VPCZoneIdentifier:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
+        - !Ref myPublicSubnet
+        - !Ref myPrivateSubnet
+
       LaunchTemplate:
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
         LaunchTemplateId: !Ref LaunchTemplate
@@ -286,7 +288,7 @@ Resources:
         NetworkInterfaces:
           - DeviceIndex: 0
             AssociatePublicIpAddress: true
-            SubnetId: !Ref PublicSubnet1
+            SubnetId: !Ref myPublicSubnet
             Groups:
               - !Ref SecurityGroup
         EbsOptimized: true
@@ -303,7 +305,6 @@ Resources:
             while [ $success = false ] && [ $attempt_num -le $max_attempts ]; do
               echo "Trying dnf install"
               dnf -y install python3.11 python3.11-pip git
-              # Check the exit code of the command
               if [ $? -eq 0 ]; then
                 echo "Yum install succeeded"
                 success=true
@@ -313,35 +314,13 @@ Resources:
                 ((attempt_num++))
               fi
             done
-            max_attempts=5
-            attempt_num=1
-            success=false
-            while [ $success = false ] && [ $attempt_num -le $max_attempts ]; do
-              echo "Trying dnf install"
-              dnf -y install https://s3.amazonaws.com/aws-appconfig-downloads/aws-appconfig-agent/linux/x86_64/latest/aws-appconfig-agent.rpm
-              # Check the exit code of the command
-              if [ $? -eq 0 ]; then
-                echo "Yum install succeeded"
-                success=true
-              else
-                echo "Attempt $attempt_num failed. Sleeping for 4 seconds and trying again..."
-                sleep 4
-                ((attempt_num++))
-              fi
-            done
-            mkdir /etc/systemd/system/aws-appconfig-agent.service.d
-            echo "[Service]" > /etc/systemd/system/aws-appconfig-agent.service.d/overrides.conf 
-            echo "Environment=SERVICE_REGION=${AWS::Region}" >> /etc/systemd/system/aws-appconfig-agent.service.d/overrides.conf
-            systemctl daemon-reload
-            systemctl enable aws-appconfig-agent
-            systemctl restart aws-appconfig-agent
             cd /opt
-            git clone https://github.com/mohsinidrees2817/custom-web-experience-with-amazon-q-business
-            cd custom-web-experience-with-amazon-q-business/
+            git clone https://github.com/mohsinidrees2817/updatedAmazonQbussines
+            cd updatedAmazonQbussines/
             pip3.11 install virtualenv
             python3.11 -m virtualenv venv
             venv/bin/pip install -r requirements.txt
-            APPCONFIG_APP_NAME=${AppConfig} APPCONFIG_ENV_NAME=${AppConfigEnvironment} APPCONFIG_CONF_NAME=${AppConfigConfigProfile} nohup venv/bin/streamlit run src/app.py --server.port=8080 > logs.txt &
+            nohup venv/bin/streamlit run Chatapplication.py --server.port=8080 > logs.txt &
 
   EC2TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -352,14 +331,14 @@ Resources:
       HealthyThresholdCount: 5
       Matcher:
         HttpCode: "200"
-      Name: EC2TargetGroup
+      Name: !Sub "EC2TargetGroup-${AWS::Region}"
       Port: 8080
       Protocol: HTTP
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
           Value: "60"
       UnhealthyThresholdCount: 3
-      VpcId: !Ref VPC
+      VpcId: !Ref myVPC
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -450,8 +429,8 @@ Resources:
     Properties:
       Scheme: internet-facing
       Subnets:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
+        - !Ref myPublicSubnet
+        - !Ref myPrivateSubnet
       SecurityGroups:
         - !Ref ELBSecurityGroup
 
@@ -524,3 +503,12 @@ Outputs:
   RoleArn:
     Description: "ARN of the IAM role required to setup token exchange in Identity Center"
     Value: !GetAtt EC2ServiceRole.Arn
+  UserPoolId:
+    Description: "User Pool Id"
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: "User Pool Client Id"
+    Value: !Ref UserPoolClient
+  ApplicationLoadBalancerDNSName:
+    Description: "DNS Name of the Application Load Balancer"
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
