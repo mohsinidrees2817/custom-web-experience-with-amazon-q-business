@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "CloudFormation for the blog on GenAI with QBusiness"
+Description: "CloudFormation for the Custom UI of QBusiness"
 Parameters:
   LatestAmiId:
     Description: EC2 machine image
