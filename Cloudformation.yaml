@@ -32,6 +32,16 @@ Parameters:
     Type: String
     Description: Identity Center customer application ARN.
     Default: ""
+  AvailabilityZonePublic:
+    Type: String
+    Description: Availability Zone for Public Subnet
+    Default: "us-west-2a"
+    ConstraintDescription: Must be a valid availability zone according to current region.
+  AvailabilityZonePrivate:
+    Type: String
+    Description: Availability Zone for Private Subnet
+    Default: "us-west-2b"
+    ConstraintDescription: Must be a valid availability zone according to current region.
 
 Resources:
   myVPC:
@@ -63,7 +73,7 @@ Resources:
     Properties:
       VpcId: !Ref myVPC
       CidrBlock: !Ref PublicSubnetCIDR
-      AvailabilityZone: "us-west-2a"
+      AvailabilityZone: !Ref AvailabilityZonePublic
       MapPublicIpOnLaunch: "true"
       Tags:
         - Key: Name
@@ -74,7 +84,7 @@ Resources:
     Properties:
       VpcId: !Ref myVPC
       CidrBlock: !Ref PrivateSubnetCIDR
-      AvailabilityZone: "us-west-2b"
+      AvailabilityZone: !Ref AvailabilityZonePrivate
       MapPublicIpOnLaunch: "false"
       Tags:
         - Key: Name
