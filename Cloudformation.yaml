@@ -456,6 +456,8 @@ Resources:
         - COGNITO
       CallbackURLs:
         - !Sub "https://${LowerCaseFqdn.Output}/component/streamlit_oauth.authorize_button/index.html"
+      LogoutURLs:
+        - !Sub "https://${LowerCaseFqdn.Output}"
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
