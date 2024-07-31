@@ -74,20 +74,43 @@ def get_iam_oidc_token(id_token):
     )
     return response
 
+# def logout():
+#     if 'token' in st.session_state:
+#         del st.session_state['token']
+#         st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
+#         st.session_state.questions = []
+#         st.session_state.answers = []
+#         st.session_state.input = ""
+#         st.session_state["chat_history"] = []
+#         st.session_state["conversationId"] = ""
+#         st.session_state["parentMessageId"] = ""
+#         st.rerun()
+#     else:
+#         st.warning("No user logged in")
+
 def logout():
     if 'token' in st.session_state:
+        # Clear all session state variables related to the user session
         del st.session_state['token']
-        st.session_state.messages = [{"role": "assistant", "content": "How may I assist you today?"}]
-        st.session_state.questions = []
-        st.session_state.answers = []
-        st.session_state.input = ""
-        st.session_state["chat_history"] = []
-        st.session_state["conversationId"] = ""
-        st.session_state["parentMessageId"] = ""
-        st.rerun()
+        del st.session_state['aws_credentials']
+        del st.session_state['idc_jwt_token']
+        st.session_state.clear()  # This clears all session state variables
+
+        # Prepare the Cognito logout URL
+        cognito_domain = OAUTH_CONFIG["CognitoDomain"]
+        client_id = OAUTH_CONFIG["ClientId"]
+        external_dns = OAUTH_CONFIG["ExternalDns"]
+
+        # Use the configured external DNS as the logout_uri
+        logout_uri = f"https://{external_dns}"
+        logout_url = f"https://{cognito_domain}/logout?client_id={client_id}&logout_uri={logout_uri}"
+
+        # Redirect the user to the logout URL
+        st.markdown(f"<meta http-equiv='refresh' content='0; url={logout_url}'/>", unsafe_allow_html=True)
     else:
         st.warning("No user logged in")
-    
+
+
 def assume_role_with_token(iam_token):
     """
     Assume IAM role with the IAM OIDC idToken
