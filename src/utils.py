@@ -173,12 +173,11 @@ def get_queue_chain(
             userMessage=prompt_input,
             conversationId=conversation_id,
             parentMessageId=parent_message_id,
-            # userId=UserId,
+            userId=UserId
         )
     else:
         answer = amazon_q.chat_sync(
-            applicationId=AMAZON_Q_APP_ID, userMessage=prompt_input
-            # , userId=UserId
+            applicationId=AMAZON_Q_APP_ID, userMessage=prompt_input, userId=UserId
         )
 
     system_message = answer.get("systemMessage", "")
