@@ -75,8 +75,8 @@ else:
     # col1, col2 = st.columns([1,1])
     # with col1:
     #     st.write("Welcome: ", user_email)
-     
-    st.sidebar.text ("Welcome: " + user_email)
+    user_name = jwt.decode(token["id_token"], options={"verify_signature": False})["cognito:username"]
+    st.sidebar.text ("Welcome: " + user_name)
     st.markdown(
         f"""
          <style>

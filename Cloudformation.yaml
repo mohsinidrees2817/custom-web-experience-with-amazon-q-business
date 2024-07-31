@@ -5,13 +5,18 @@ Parameters:
     Description: EC2 machine image
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
-  VpcId:
-    Description: ID of the existing VPC
-    Type: AWS::EC2::VPC::Id
-    ConstraintDescription: must be the ID of an existing VPC
-  PublicSubnetIds:
-    Description: List of IDs of existing public subnets. Please select at least two subnets
-    Type: List<AWS::EC2::Subnet::Id>
+  VpcCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: Please enter VPC CIDR
+  PublicSubnetCIDR:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: Please enter CIDR for Public Subnet
+  PrivateSubnetCIDR:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: Please enter CIDR for Private Subnet
   CertificateARN:
     Description: Certificate that needs to be added to the Load Balancer
     Type: String
@@ -29,6 +34,88 @@ Parameters:
     Default: ""
 
 Resources:
+  myVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: "true"
+      EnableDnsHostnames: "true"
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: myVPC
+
+  myInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: myInternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref myVPC
+      InternetGatewayId: !Ref myInternetGateway
+
+  myPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: !Ref PublicSubnetCIDR
+      AvailabilityZone: "us-west-2a"
+      MapPublicIpOnLaunch: "true"
+      Tags:
+        - Key: Name
+          Value: myPublicSubnet
+
+  myPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      CidrBlock: !Ref PrivateSubnetCIDR
+      AvailabilityZone: "us-west-2b"
+      MapPublicIpOnLaunch: "false"
+      Tags:
+        - Key: Name
+          Value: myPrivateSubnet
+
+  myRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: myRouteTable
+
+  myRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref myInternetGateway
+
+  myPublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPublicSubnet
+      RouteTableId: !Ref myRouteTable
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      VpcId: !Ref myVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8501
+          ToPort: 8501
+          CidrIp: 0.0.0.0/0
+
   QManagedPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -173,7 +260,7 @@ Resources:
           - SECURITY_GROUP_MISSING_EGRESS_RULE
     Properties:
       GroupDescription: ELB Security Group
-      VpcId: !Ref VpcId
+      VpcId: !Ref myVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 443
@@ -204,7 +291,7 @@ Resources:
           - SECURITY_GROUP_MISSING_EGRESS_RULE
     Properties:
       GroupDescription: EC2 Security group
-      VpcId: !Ref VpcId
+      VpcId: !Ref myVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 8080
@@ -242,7 +329,9 @@ Resources:
         - !Ref EC2TargetGroup
       HealthCheckType: ELB
       HealthCheckGracePeriod: 180
-      VPCZoneIdentifier: !Ref PublicSubnetIds
+      VPCZoneIdentifier:
+        - !Ref myPublicSubnet
+        - !Ref myPrivateSubnet
 
       LaunchTemplate:
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
@@ -259,7 +348,7 @@ Resources:
         NetworkInterfaces:
           - DeviceIndex: 0
             AssociatePublicIpAddress: true
-            SubnetId: !Select [0, !Ref PublicSubnetIds]
+            SubnetId: !Ref myPublicSubnet
             Groups:
               - !Ref SecurityGroup
         EbsOptimized: true
@@ -333,7 +422,7 @@ Resources:
         - Key: deregistration_delay.timeout_seconds
           Value: "60"
       UnhealthyThresholdCount: 3
-      VpcId: !Ref VpcId
+      VpcId: !Ref myVPC
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -424,8 +513,8 @@ Resources:
     Properties:
       Scheme: internet-facing
       Subnets:
-        - !Select [0, !Ref PublicSubnetIds]
-        - !Select [1, !Ref PublicSubnetIds]
+        - !Ref myPublicSubnet
+        - !Ref myPrivateSubnet
       SecurityGroups:
         - !Ref ELBSecurityGroup
 
