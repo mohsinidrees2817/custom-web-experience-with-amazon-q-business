@@ -134,7 +134,7 @@ else:
 
 
     # If the last message is from the user, generate a response from the Q_backend
-    if st.session_state.messages and st.session_state.messages[-1]["role"] != "assistant":
+    if st.session_state.messages[-1]["role"] != "assistant":
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 placeholder = st.empty()
@@ -155,13 +155,3 @@ else:
             feedback_type="thumbs",
             optional_text_label="[Optional] Please provide an explanation",
         )
-
-    if not st.session_state.messages and st.session_state["conversationId"] != "" and st.session_state["parentMessageId"] != "":
-        # Display the questions
-        
-        st.subheader("Ask Natural Language Questions Against IRS Form 1040 Instructions Guide:")
-        st.write("Suggested Topics:")
-        st.write("1. If I plan to move after filing my tax return, What should i File?")
-        st.write("2. If my Filing Status is Single and i am under 65, what is the gross income limit?")
-        st.write("3. How Should I Report Digital Asset Transactions?")
-        st.write("4. Explain Line 6c to me")

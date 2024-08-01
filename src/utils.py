@@ -149,13 +149,13 @@ def get_qclient(idc_id_token: str):
     amazon_q = session.client("qbusiness", REGION)
 
 
-    sts_client = boto3.client('sts',
-        aws_access_key_id=st.session_state.aws_credentials["AccessKeyId"],
-        aws_secret_access_key=st.session_state.aws_credentials["SecretAccessKey"],
-        aws_session_token=st.session_state.aws_credentials["SessionToken"],
-        )
-    Userid = sts_client.get_caller_identity()
-    return amazon_q, Userid["UserId"]
+    # sts_client = boto3.client('sts',
+    #     aws_access_key_id=st.session_state.aws_credentials["AccessKeyId"],
+    #     aws_secret_access_key=st.session_state.aws_credentials["SecretAccessKey"],
+    #     aws_session_token=st.session_state.aws_credentials["SessionToken"],
+    #     )
+    # Userid = sts_client.get_caller_identity()
+    return amazon_q
 
 
 # This code invoke chat_sync api and format the response for UI
@@ -165,7 +165,7 @@ def get_queue_chain(
     # """"
     # This method is used to get the answer from the queue chain.
     # """
-    amazon_q , UserId  = get_qclient(token)
+    amazon_q   = get_qclient(token)
     
     if conversation_id != "":
         answer = amazon_q.chat_sync(
@@ -173,11 +173,11 @@ def get_queue_chain(
             userMessage=prompt_input,
             conversationId=conversation_id,
             parentMessageId=parent_message_id,
-            userId=UserId
+            # userId=UserId
         )
     else:
         answer = amazon_q.chat_sync(
-            applicationId=AMAZON_Q_APP_ID, userMessage=prompt_input, userId=UserId
+            applicationId=AMAZON_Q_APP_ID, userMessage=prompt_input
         )
 
     system_message = answer.get("systemMessage", "")

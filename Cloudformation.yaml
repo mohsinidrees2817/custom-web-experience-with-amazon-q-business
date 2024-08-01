@@ -259,6 +259,7 @@ Resources:
       Name: "Quick deployment"
       ReplicateTo: "NONE"
       GrowthType: "LINEAR"
+
   # EC2 and ALB Security Groups
   ELBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
