@@ -136,14 +136,14 @@ else:
             st.write(prompt)
 
 
-    # If the last message is from the user, generate a response from the Q_backend
-    if st.session_state.messages[-1]["role"] != "assistant":
+    # Check if the last message is not from the assistant and messages list is not empty
+    if st.session_state.messages and st.session_state.messages[-1]["role"] != "assistant":
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 placeholder = st.empty()
-                response = utils.get_queue_chain(prompt,st.session_state["conversationId"],
-                                                 st.session_state["parentMessageId"],
-                                                 st.session_state["idc_jwt_token"]["idToken"])
+                response = utils.get_queue_chain(prompt, st.session_state["conversationId"],
+                                                st.session_state["parentMessageId"],
+                                                st.session_state["idc_jwt_token"]["idToken"])
                 if "references" in response:
                     full_response = f"""{response["answer"]}\n\n---\n{response["references"]}"""
                 else:
@@ -151,7 +151,6 @@ else:
                 placeholder.markdown(full_response)
                 st.session_state["conversationId"] = response["conversationId"]
                 st.session_state["parentMessageId"] = response["parentMessageId"]
-
 
         st.session_state.messages.append({"role": "assistant", "content": full_response})
         feedback = streamlit_feedback(
