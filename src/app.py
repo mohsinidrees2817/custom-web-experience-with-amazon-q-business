@@ -153,7 +153,4 @@ else:
                 st.session_state["parentMessageId"] = response["parentMessageId"]
 
         st.session_state.messages.append({"role": "assistant", "content": full_response})
-        feedback = streamlit_feedback(
-            feedback_type="thumbs",
-            optional_text_label="[Optional] Please provide an explanation",
-        )
+        
