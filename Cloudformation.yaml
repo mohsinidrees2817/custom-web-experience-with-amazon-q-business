@@ -5,18 +5,6 @@ Parameters:
     Description: EC2 machine image
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
-  VpcCIDR:
-    Type: String
-    Default: 10.0.0.0/16
-    Description: Please enter VPC CIDR
-  PublicSubnetCIDR:
-    Type: String
-    Default: 10.0.1.0/24
-    Description: Please enter CIDR for Public Subnet
-  PrivateSubnetCIDR:
-    Type: String
-    Default: 10.0.2.0/24
-    Description: Please enter CIDR for Private Subnet
   CertificateARN:
     Description: Certificate that needs to be added to the Load Balancer
     Type: String
@@ -32,28 +20,31 @@ Parameters:
     Type: String
     Description: Identity Center customer application ARN.
     Default: ""
-  AvailabilityZonePublic:
+
+  VpcCIDR:
     Type: String
-    Description: Availability Zone for Public Subnet
-    Default: "us-west-2a"
-    ConstraintDescription: Must be a valid availability zone according to current region.
-  AvailabilityZonePrivate:
+    Default: 10.0.0.0/16
+    Description: Please enter VPC CIDR
+
+  PublicSubnet1CIDR:
     Type: String
-    Description: Availability Zone for Private Subnet
-    Default: "us-west-2b"
-    ConstraintDescription: Must be a valid availability zone according to current region.
+    Default: 10.0.1.0/24
+    Description: Please enter CIDR for Public Subnet 1
+  PublicSubnet2CIDR:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: Please enter CIDR for Public Subnet 2
 
 Resources:
-  myVPC:
+  VpcId:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: !Ref VpcCIDR
       EnableDnsSupport: "true"
       EnableDnsHostnames: "true"
-      InstanceTenancy: default
       Tags:
         - Key: Name
-          Value: myVPC
+          Value: VpcId
 
   myInternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -62,60 +53,67 @@ Resources:
         - Key: Name
           Value: myInternetGateway
 
-  AttachGateway:
+  InternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      VpcId: !Ref myVPC
       InternetGatewayId: !Ref myInternetGateway
+      VpcId: !Ref VpcId
 
-  myPublicSubnet:
+  myPublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref myVPC
-      CidrBlock: !Ref PublicSubnetCIDR
-      AvailabilityZone: !Ref AvailabilityZonePublic
-      MapPublicIpOnLaunch: "true"
+      VpcId: !Ref VpcId
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: myPublicSubnet
+          Value: myPublicSubnet1
 
-  myPrivateSubnet:
+  myPublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref myVPC
-      CidrBlock: !Ref PrivateSubnetCIDR
-      AvailabilityZone: !Ref AvailabilityZonePrivate
-      MapPublicIpOnLaunch: "false"
+      VpcId: !Ref VpcId
+      CidrBlock: !Ref PublicSubnet2CIDR
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: myPrivateSubnet
+          Value: myPublicSubnet2
 
   myRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref myVPC
+      VpcId: !Ref VpcId
       Tags:
         - Key: Name
           Value: myRouteTable
 
   myRoute:
     Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
     Properties:
       RouteTableId: !Ref myRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref myInternetGateway
 
-  myPublicSubnetRouteTableAssociation:
+  myPublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      SubnetId: !Ref myPublicSubnet
+      SubnetId: !Ref myPublicSubnet1
+      RouteTableId: !Ref myRouteTable
+
+  myPublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myPublicSubnet2
       RouteTableId: !Ref myRouteTable
 
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Enable SSH access via port 22
-      VpcId: !Ref myVPC
+      VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
@@ -270,7 +268,7 @@ Resources:
           - SECURITY_GROUP_MISSING_EGRESS_RULE
     Properties:
       GroupDescription: ELB Security Group
-      VpcId: !Ref myVPC
+      VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 443
@@ -301,7 +299,7 @@ Resources:
           - SECURITY_GROUP_MISSING_EGRESS_RULE
     Properties:
       GroupDescription: EC2 Security group
-      VpcId: !Ref myVPC
+      VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 8080
@@ -340,8 +338,8 @@ Resources:
       HealthCheckType: ELB
       HealthCheckGracePeriod: 180
       VPCZoneIdentifier:
-        - !Ref myPublicSubnet
-        - !Ref myPrivateSubnet
+        - !Ref myPublicSubnet1
+        - !Ref myPublicSubnet2
 
       LaunchTemplate:
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
@@ -358,7 +356,7 @@ Resources:
         NetworkInterfaces:
           - DeviceIndex: 0
             AssociatePublicIpAddress: true
-            SubnetId: !Ref myPublicSubnet
+            SubnetId: !Ref myPublicSubnet1
             Groups:
               - !Ref SecurityGroup
         EbsOptimized: true
@@ -432,7 +430,7 @@ Resources:
         - Key: deregistration_delay.timeout_seconds
           Value: "60"
       UnhealthyThresholdCount: 3
-      VpcId: !Ref myVPC
+      VpcId: !Ref VpcId
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -525,8 +523,8 @@ Resources:
     Properties:
       Scheme: internet-facing
       Subnets:
-        - !Ref myPublicSubnet
-        - !Ref myPrivateSubnet
+        - !Ref myPublicSubnet1
+        - !Ref myPublicSubnet2
       SecurityGroups:
         - !Ref ELBSecurityGroup
 

@@ -88,7 +88,6 @@ else:
                 position: relative;
                 top: 100px;
             }}
-        
         """,
         unsafe_allow_html=True
     )
