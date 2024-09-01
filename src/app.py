@@ -31,8 +31,8 @@ oauth2 = utils.configure_oauth_component()
 if "token" not in st.session_state:
     # Redirect directly if no token is present
     redirect_uri = f"https://{utils.OAUTH_CONFIG['ExternalDns']}/component/streamlit_oauth.authorize_button/index.html"
-    st.experimental_set_query_params(redirect=redirect_uri)
-    st.experimental_rerun()
+    st.query_params(redirect=redirect_uri)
+    st.rerun()
 else:
     token = st.session_state["token"]
     refresh_token = token["refresh_token"]  # saving the long-lived refresh_token

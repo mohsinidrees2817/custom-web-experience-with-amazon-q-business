@@ -8,6 +8,7 @@ Parameters:
   CertificateARN:
     Description: Certificate that needs to be added to the Load Balancer
     Type: String
+    Default: "arn:aws:acm:us-east-1:051826717177:certificate/f5952f87-c29f-4484-bd48-28b0a38849c2"
   AuthName:
     Type: String
     Description: Unique Auth Name for Cognito Resources
@@ -16,6 +17,7 @@ Parameters:
   QApplicationId:
     Type: String
     Description: Q Application Id
+    Default: "fda0ae8c-acff-4124-8d67-8de3b4691f82"
   IdcApplicationArn:
     Type: String
     Description: Identity Center customer application ARN.
