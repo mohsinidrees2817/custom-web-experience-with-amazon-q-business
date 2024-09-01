@@ -124,6 +124,38 @@ Resources:
           ToPort: 8501
           CidrIp: 0.0.0.0/0
 
+  QManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowQChat
+            Effect: Allow
+            Action:
+              - "qbusiness:ChatSync"
+            Resource: !Sub "arn:${AWS::Partition}:qbusiness:${AWS::Region}:${AWS::AccountId}:application/${QApplicationId}"
+
+  QServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action:
+              - sts:AssumeRole
+              - sts:SetContext
+            Condition:
+              ArnEquals:
+                "aws:PrincipalArn": !GetAtt EC2ServiceRole.Arn
+      Path: /
+      ManagedPolicyArns:
+        - !Ref QManagedPolicy
+
   EC2ServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -157,12 +189,74 @@ Resources:
             Action:
               - "sts:AssumeRole"
               - "sts:SetContext"
+            Resource: !GetAtt QServiceRole.Arn
           - Sid: AllowTokenExchange
             Effect: Allow
             Action:
               - "sso-oauth:CreateTokenWithIAM"
             Resource: "*"
+          - Sid: AllowAppConfig
+            Effect: Allow
+            Action:
+              - "appconfig:StartConfigurationSession"
+              - "appconfig:GetLatestConfiguration"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appconfig:${AWS::Region}:${AWS::AccountId}:application/${AppConfig}/environment/${AppConfigEnvironment}/configuration/${AppConfigConfigProfile}"
 
+  AppConfig:
+    Type: AWS::AppConfig::Application
+    Properties:
+      Name: qcustomwebui
+
+  AppConfigEnvironment:
+    Type: AWS::AppConfig::Environment
+    Properties:
+      ApplicationId: !Ref AppConfig
+      Name: qcustomwebui-env
+
+  AppConfigConfigProfile:
+    Type: AWS::AppConfig::ConfigurationProfile
+    Properties:
+      ApplicationId: !Ref AppConfig
+      Name: qcustomwebui-config
+      LocationUri: "hosted"
+
+  AppConfigConfigVersion:
+    Type: AWS::AppConfig::HostedConfigurationVersion
+    Properties:
+      ApplicationId: !Ref AppConfig
+      ConfigurationProfileId: !Ref AppConfigConfigProfile
+      ContentType: "application/json"
+      Content: !Sub |
+        {
+          "AmazonQAppId": "${QApplicationId}",
+          "IamRoleArn": "${QServiceRole.Arn}",
+          "Region": "${AWS::Region}",
+          "IdcApplicationArn": "${IdcApplicationArn}",
+          "OAuthConfig": {
+            "ClientId": "${UserPoolClient}",
+            "ExternalDns": "${LowerCaseFqdn.Output}",
+            "CognitoDomain" : "${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+          }
+        }
+  AppConfigDeployment:
+    Type: AWS::AppConfig::Deployment
+    Properties:
+      ApplicationId: !Ref AppConfig
+      ConfigurationProfileId: !Ref AppConfigConfigProfile
+      ConfigurationVersion: !GetAtt AppConfigConfigVersion.VersionNumber
+      EnvironmentId: !Ref AppConfigEnvironment
+      DeploymentStrategyId: !Ref AppConfigDeploymentStrategy
+
+  AppConfigDeploymentStrategy:
+    Type: AWS::AppConfig::DeploymentStrategy
+    Properties:
+      DeploymentDurationInMinutes: 0
+      FinalBakeTimeInMinutes: 0
+      GrowthFactor: 100
+      Name: "Quick deployment"
+      ReplicateTo: "NONE"
+      GrowthType: "LINEAR"
   # EC2 and ALB Security Groups
   ELBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -292,7 +386,18 @@ Resources:
             max_attempts=5
             attempt_num=1
             success=false
-            
+            while [ $success = false ] && [ $attempt_num -le $max_attempts ]; do
+              echo "Trying dnf install"
+              dnf -y install https://s3.amazonaws.com/aws-appconfig-downloads/aws-appconfig-agent/linux/x86_64/latest/aws-appconfig-agent.rpm
+              # Check the exit code of the command
+              if [ $? -eq 0 ]; then
+                echo "Yum install succeeded"
+                success=true
+              else
+                echo "Attempt $attempt_num failed. Sleeping for 3 seconds and trying again..."
+                sleep 3
+                ((attempt_num++))
+              fi
             done
             mkdir /etc/systemd/system/aws-appconfig-agent.service.d
             echo "[Service]" > /etc/systemd/system/aws-appconfig-agent.service.d/overrides.conf 
