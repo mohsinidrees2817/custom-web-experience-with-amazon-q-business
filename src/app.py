@@ -5,6 +5,7 @@ import streamlit as st  # all streamlit commands will be available through the "
 import utils
 from streamlit_feedback import streamlit_feedback
 import boto3
+import webbrowser
 UTC = timezone.utc
 
 # Init configuration
@@ -31,7 +32,8 @@ oauth2 = utils.configure_oauth_component()
 if "token" not in st.session_state:
     # Redirect directly if no token is present
     redirect_uri = f"https://{utils.OAUTH_CONFIG['ExternalDns']}/component/streamlit_oauth.authorize_button/index.html"
-    st.query_params(redirect=redirect_uri)
+    # st.query_params(redirect=redirect_uri)
+    webbrowser.open_new_tab(redirect_uri)
     st.rerun()
 else:
     token = st.session_state["token"]
